@@ -257,7 +257,7 @@ class PDFEstimator:
             raise ValueError(f"Invalid direction: {direction}. Use 'range', 'range_up', or 'range_dn'.")
 
         return self.pdf_dict[state][direction].copy()
-x
+
     def get_state_statistics(self, state: Tuple[int, int, int]) -> Dict:
         """
         Get statistics for a specific state.

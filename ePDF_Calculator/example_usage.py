@@ -177,6 +177,55 @@ def example_5_model_info():
     print(f"  Data shape: {info['data_shape']}")
     print(f"  J_s (start index): {info['J_s']}")
     print(f"  States observed: {info['n_states_observed']}/{info['n_states']}")
+    
+    
+def example_6_train_with_cutoff():
+    """Example 6: Train with cutoff date to avoid forward-looking bias."""
+    print("\n" + "=" * 70)
+    print("EXAMPLE 6: Training with Cutoff Date (Backtesting)")
+    print("=" * 70)
+    
+    print("\nUse case: Backtesting a strategy on 2022-01-15")
+    print("We need a model trained ONLY on data before 2022-01-15\n")
+    
+    # Train model with cutoff
+    calc = ePDFCalculator(
+        instrument='VG',
+        tau=5,
+        M=3, N=3, K=2,
+        ewma_halflife=10,
+        estimation_method='smoothed'
+    )
+    
+    # Key: Use train_end_date parameter
+    print("Training with train_end_date='2022-01-15'...")
+    calc.fit('data/EuroStoxx/VGH22.csv', train_end_date='2022-01-15')
+    
+    # Check model info
+    info = calc.get_model_info()
+    print(f"\nModel Info:")
+    print(f"  Train cutoff date: {info['train_end_date']}")
+    print(f"  Data shape: {info['data_shape']}")
+    print(f"  States observed: {info['n_states_observed']}/{info['n_states']}")
+    
+    # Save with date in filename
+    model_path = 'models/epdf_VG_tau5_until_20220115.pkl'
+    calc.save(model_path)
+    print(f"\n✓ Model saved to: {model_path}")
+    
+    # Load and verify
+    print("\nLoading model back...")
+    calc_loaded = ePDFCalculator.load(model_path)
+    info_loaded = calc_loaded.get_model_info()
+    print(f"  Loaded model cutoff date: {info_loaded['train_end_date']}")
+    
+    # Use in strategy on 2022-01-15
+    print("\nUsing model on 2022-01-15 (backtesting):")
+    state = calc_loaded.get_current_state(150.0, 8.5, 2.3)
+    fill_prob = calc_loaded.query_cdf(3, 'range_dn', state)
+    print(f"  Current state: {state}")
+    print(f"  Fill probability (3 ticks): {fill_prob:.2%}")
+    print(f"\n✓ No forward-looking bias - model only uses data before cutoff")
 
 
 def main():
@@ -198,6 +247,7 @@ def main():
     example_3_state_classification()
     example_4_compare_methods()
     example_5_model_info()
+    example_6_train_with_cutoff() 
 
     print("\n" + "=" * 70)
     print("ALL EXAMPLES COMPLETED")

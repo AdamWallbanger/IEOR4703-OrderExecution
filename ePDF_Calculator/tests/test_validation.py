@@ -17,6 +17,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from epdf.state_classifier import StateClassifier
 from epdf.probability_estimator import PDFEstimator
+from epdf.calculator import ePDFCalculator
+from epdf.data_processor import DataProcessor
 
 
 def test_ewma_no_forward_looking():
@@ -232,6 +234,133 @@ def test_laplace_smoothing():
     print("\n✓✓✓ PASSED: Laplace smoothing works correctly\n")
 
 
+def test_train_end_date_filtering():
+    """
+    Test that train_end_date parameter correctly filters data and prevents forward-looking bias.
+
+    This test:
+    1. Loads VGH22.csv and finds its date range
+    2. Selects median date as cutoff
+    3. Trains two models: one with full data, one with cutoff
+    4. Verifies cutoff model has less data and respects date boundary
+    """
+    print("=" * 60)
+    print("TEST 5: Train End Date Filtering (Forward-Looking Bias Prevention)")
+    print("=" * 60)
+
+    # Determine data file path
+    data_file = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        'data', 'EuroStoxx', 'VGH22.csv'
+    )
+
+    if not os.path.exists(data_file):
+        print(f"⚠ Data file not found: {data_file}")
+        print("Skipping test (data file not available)")
+        return
+
+    print(f"\n[Step 1] Loading data to determine date range...")
+    df_full = DataProcessor.load_raw_data(data_file)
+    date_min = df_full.index.min()
+    date_max = df_full.index.max()
+    print(f"  Data range: {date_min} to {date_max}")
+    print(f"  Total bars: {len(df_full)}")
+
+    # Select median date as cutoff
+    date_median_idx = len(df_full) // 2
+    date_median = df_full.index[date_median_idx]
+    cutoff_date = date_median.strftime('%Y-%m-%d')
+    print(f"\n[Step 2] Selected cutoff date: {cutoff_date} (median of dataset)")
+
+    # Train model with full data
+    print(f"\n[Step 3] Training model with FULL data...")
+    calc_full = ePDFCalculator(
+        instrument='VG',
+        tau=5,
+        M=3, N=3, K=2,
+        ewma_halflife=10,
+        estimation_method='raw'
+    )
+    calc_full.fit(data_file)
+    info_full = calc_full.get_model_info()
+
+    print("\n" + "=" * 60)
+    print("MODEL INFO (FULL DATA):")
+    print("=" * 60)
+    for key, value in info_full.items():
+        print(f"  {key}: {value}")
+    print("=" * 60)
+
+    # Train model with cutoff date
+    print(f"\n[Step 4] Training model with train_end_date='{cutoff_date}'...")
+    calc_cutoff = ePDFCalculator(
+        instrument='VG',
+        tau=5,
+        M=3, N=3, K=2,
+        ewma_halflife=10,
+        estimation_method='raw'
+    )
+    calc_cutoff.fit(data_file, train_end_date=cutoff_date)
+    info_cutoff = calc_cutoff.get_model_info()
+
+    print("\n" + "=" * 60)
+    print(f"MODEL INFO (WITH train_end_date='{cutoff_date}'):")
+    print("=" * 60)
+    for key, value in info_cutoff.items():
+        print(f"  {key}: {value}")
+    print("=" * 60)
+
+    # Verification 1: Metadata contains train_end_date
+    print(f"\n[Verification 1] Checking metadata...")
+    assert 'train_end_date' in info_cutoff, "train_end_date should be in model info"
+    assert info_cutoff['train_end_date'] == cutoff_date, \
+        f"train_end_date should be '{cutoff_date}', got '{info_cutoff['train_end_date']}'"
+    assert info_full['train_end_date'] is None, \
+        "Full model should have train_end_date=None"
+    print(f"  ✓ train_end_date correctly stored in metadata")
+    print(f"    Full model: train_end_date = {info_full['train_end_date']}")
+    print(f"    Cutoff model: train_end_date = {info_cutoff['train_end_date']}")
+
+    # Verification 2: Cutoff model has smaller data_shape
+    print(f"\n[Verification 2] Checking data size...")
+    rows_full = info_full['data_shape'][0]
+    rows_cutoff = info_cutoff['data_shape'][0]
+    print(f"  Full model data_shape: {info_full['data_shape']} ({rows_full} rows)")
+    print(f"  Cutoff model data_shape: {info_cutoff['data_shape']} ({rows_cutoff} rows)")
+    assert rows_cutoff < rows_full, \
+        f"Cutoff model should have fewer rows ({rows_cutoff}) than full model ({rows_full})"
+    reduction_pct = (1 - rows_cutoff / rows_full) * 100
+    print(f"  ✓ Cutoff model has {rows_full - rows_cutoff} fewer rows ({reduction_pct:.1f}% reduction)")
+
+    # Verification 3: Processed data respects cutoff date
+    print(f"\n[Verification 3] Checking data boundary...")
+    df_cutoff = DataProcessor.process_pipeline(
+        filepath=data_file,
+        tick_size=0.5,  # VG tick size
+        tau=5,
+        train_end_date=cutoff_date
+    )
+    data_max_date = df_cutoff.index.max()
+    cutoff_datetime = pd.to_datetime(cutoff_date)
+    print(f"  Cutoff date: {cutoff_datetime}")
+    print(f"  Max date in processed data: {data_max_date}")
+    assert data_max_date <= cutoff_datetime, \
+        f"Data max date ({data_max_date}) should be <= cutoff ({cutoff_datetime})"
+    print(f"  ✓ All data is before or on cutoff date")
+
+    # Summary
+    print("\n" + "=" * 60)
+    print("SUMMARY:")
+    print(f"  • Full model trained on {rows_full} bars")
+    print(f"  • Cutoff model trained on {rows_cutoff} bars (cutoff: {cutoff_date})")
+    print(f"  • Data reduction: {reduction_pct:.1f}%")
+    print(f"  • Max date in cutoff data: {data_max_date}")
+    print(f"  • No forward-looking bias detected ✓")
+    print("=" * 60)
+
+    print("\n✓✓✓ PASSED: train_end_date correctly prevents forward-looking bias\n")
+
+
 def run_all_tests():
     """Run all validation tests."""
     print("\n" + "=" * 60)
@@ -243,6 +372,7 @@ def run_all_tests():
         test_ewma_manual_calculation()
         test_pdf_properties()
         test_laplace_smoothing()
+        test_train_end_date_filtering()
 
         print("=" * 60)
         print("ALL TESTS PASSED ✓✓✓")

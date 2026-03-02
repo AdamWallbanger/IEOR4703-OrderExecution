@@ -232,7 +232,8 @@ class DataProcessor:
 
     @staticmethod
     def process_pipeline(filepath: str, tick_size: float, tau: int = 1,
-                        min_completeness: float = 0.9) -> pd.DataFrame:
+                        min_completeness: float = 0.9,
+                        train_end_date: Optional[str] = None) -> pd.DataFrame:
         """
         Complete data processing pipeline.
 
@@ -241,12 +242,31 @@ class DataProcessor:
             tick_size: Tick size for the instrument
             tau: Target bar length in minutes (default: 1)
             min_completeness: Minimum completeness for sparse day filtering (default: 0.9)
+            train_end_date: Optional cutoff date for training data (format: 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM:SS').
+                           If specified, only data before this date will be used for training.
+                           This prevents forward-looking bias in backtesting scenarios.
 
         Returns:
             Processed DataFrame with OHLCV and range columns
         """
         # Load data
         df = DataProcessor.load_raw_data(filepath)
+
+        # Filter by train_end_date if specified (to avoid forward-looking bias)
+        if train_end_date is not None:
+            cutoff = pd.to_datetime(train_end_date)
+            n_before = len(df)
+            df = df[df.index <= cutoff]
+            n_after = len(df)
+            if n_after == 0:
+                raise ValueError(
+                    f"No data found before train_end_date={train_end_date}. "
+                    f"Data range: {df.index.min()} to {df.index.max()}"
+                )
+            warnings.warn(
+                f"Filtered data by train_end_date={train_end_date}: "
+                f"{n_before} -> {n_after} bars ({n_after/n_before*100:.1f}% retained)"
+            )
 
         # Filter sparse days
         df = DataProcessor.filter_sparse_days(df, min_completeness)
