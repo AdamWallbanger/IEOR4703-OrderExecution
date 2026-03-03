@@ -93,10 +93,12 @@ class ePDFCalculator:
         self.J_s = None
         self.training_data_path = None
         self.training_timestamp = None
+        self.train_end_date = None
         self.data_shape = None
         self.is_fitted = False
 
-    def fit(self, filepath: str, min_completeness: float = 0.9):
+    def fit(self, filepath: str, min_completeness: float = 0.9,
+            train_end_date: Optional[str] = None):
         """
         Train the ePDF calculator on historical data.
 
@@ -110,9 +112,15 @@ class ePDFCalculator:
         Args:
             filepath: Path to CSV file with OHLCV data
             min_completeness: Minimum completeness for sparse day filtering (default: 0.9)
+            train_end_date: Optional cutoff date for training data (format: 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM:SS').
+                           If specified, only data before this date will be used for training.
+                           This prevents forward-looking bias in backtesting scenarios.
+                           Example: calc.fit('data.csv', train_end_date='2020-06-15')
         """
         print(f"Training ePDF Calculator for {self.instrument}, τ={self.tau} min...")
         print(f"Parameters: M={self.M}, N={self.N}, K={self.K}, halflife={self.ewma_halflife}")
+        if train_end_date is not None:
+            print(f"Training cutoff date: {train_end_date}")
 
         # Stage 1: Data preprocessing
         print("\n[1/5] Loading and preprocessing data...")
@@ -120,7 +128,8 @@ class ePDFCalculator:
             filepath=filepath,
             tick_size=self.tick_size,
             tau=self.tau,
-            min_completeness=min_completeness
+            min_completeness=min_completeness,
+            train_end_date=train_end_date
         )
         print(f"  Loaded {len(df)} bars after preprocessing")
 
@@ -166,6 +175,7 @@ class ePDFCalculator:
         # Store metadata
         self.training_data_path = filepath
         self.training_timestamp = datetime.now()
+        self.train_end_date = train_end_date
         self.data_shape = df.shape
         self.is_fitted = True
 
@@ -273,6 +283,7 @@ class ePDFCalculator:
             'J_s': self.J_s,
             'training_data_path': self.training_data_path,
             'training_timestamp': self.training_timestamp,
+            'train_end_date': self.train_end_date,
             'data_shape': self.data_shape,
             'is_fitted': self.is_fitted,
             'n_states': self.M * self.N * self.K,
