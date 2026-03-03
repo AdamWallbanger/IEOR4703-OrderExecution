@@ -1,8 +1,19 @@
 from Signal_gen import signal_gen
 from execution import execution
+from multiprocessing import Pool
+import multiprocessing as mp
+from functools import partial
+import pandas as pd
+import os
+from tqdm import tqdm
+
 
 import warnings
 warnings.filterwarnings("ignore")
+
+def execution_worker(filename,signal_path,data_path,symbol_dict,tau,M,N,K,risk_percentage,ewma_halflife,estimation_method,smoothing_alpha):
+    signal = pd.read_csv(signal_path+filename)
+    execution(signal, data_path, symbol_dict, tau, M, N, K, risk_percentage, ewma_halflife, estimation_method, smoothing_alpha)
 
 if __name__ == '__main__':
     data_path = "Data/"
@@ -22,4 +33,23 @@ if __name__ == '__main__':
         "NQ" : "Nasdaq"
     }
     #signal_gen(data_path, signal_path)
-    execution(signal_path,data_path,symbol_dict,tau, M, N, K,risk_percentage)
+    func = partial(
+        execution_worker,
+        signal_path = signal_path,
+        data_path=data_path,
+        symbol_dict = symbol_dict,
+        tau = tau,
+        M = M,
+        N = N,
+        K = K,
+        risk_percentage = risk_percentage,
+        ewma_halflife = 10,
+        estimation_method = 'smoothed',
+        smoothing_alpha = 0.5
+    )
+
+    n_workers = os.cpu_count() - 2
+    filenames = os.listdir(signal_path)
+    with Pool(processes=n_workers) as pool:
+        for _ in tqdm(pool.imap_unordered(func, filenames), total=len(filenames), desc="Placement"):
+            pass
