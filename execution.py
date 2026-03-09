@@ -1,12 +1,15 @@
 import pandas as pd
 import numpy as np
 import os
+from tqdm import tqdm
 
 from epdf import ePDFCalculator
 
-def execution(signal,data_path,symbol_dict,tau,M,N,K,risk_percentage,ewma_halflife=10,estimation_method='smoothed',smoothing_alpha=0.5):
+def execution(signal,filename,data_path,symbol_dict,tau,M,N,K,risk_percentage,tick_dict,ewma_halflife=10,estimation_method='smoothed',smoothing_alpha=0.5):
+    result_path = "Result/"
     signal["timestamp"] = pd.to_datetime(signal["timestamp"])
-    for idx, row in signal.iterrows():
+    p = []
+    for idx, row in tqdm(signal.iterrows(),total=len(signal), desc="Order by Order"):
         data = row["main_contract_clean"]
         instrument = str(data)[0:2]
         calc = ePDFCalculator(
@@ -45,3 +48,10 @@ def execution(signal,data_path,symbol_dict,tau,M,N,K,risk_percentage,ewma_halfli
                 placement = (l,cdf)
             else:
                 break
+        if direction == "range_dn":
+            price = pre_row["close"] - (l * tick_dict[instrument])
+        else:
+            price = pre_row["close"] + (l * tick_dict[instrument])
+        p.append(price)
+    signal["opti_price"] = p
+    signal.to_csv(result_path + filename)

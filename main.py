@@ -6,16 +6,18 @@ from functools import partial
 import pandas as pd
 import os
 from tqdm import tqdm
-
-
 import warnings
 warnings.filterwarnings("ignore")
+import builtins
 
-def execution_worker(filename,signal_path,data_path,symbol_dict,tau,M,N,K,risk_percentage,ewma_halflife,estimation_method,smoothing_alpha):
+builtins.print = lambda *args, **kwargs: None
+
+def execution_worker(filename,signal_path,data_path,symbol_dict,tau,M,N,K,risk_percentage,tick_dict,ewma_halflife,estimation_method,smoothing_alpha):
     signal = pd.read_csv(signal_path+filename)
-    execution(signal, data_path, symbol_dict, tau, M, N, K, risk_percentage, ewma_halflife, estimation_method, smoothing_alpha)
+    execution(signal,filename,data_path, symbol_dict, tau, M, N, K, risk_percentage,tick_dict, ewma_halflife, estimation_method, smoothing_alpha)
 
 if __name__ == '__main__':
+
     data_path = "Data/"
     signal_path = "Signal/"
     tau = 5
@@ -32,6 +34,15 @@ if __name__ == '__main__':
         "JY" : "JPY - Japanese Yen",
         "NQ" : "Nasdaq"
     }
+    tick_dict = {
+        'NQ': 0.25,
+        'HO': 0.01,
+        'GC': 0.10,
+        'BP': 0.01,
+        'JY': 0.005,
+        'RX': 0.01,
+        'VG': 0.50
+    }
     #signal_gen(data_path, signal_path)
     func = partial(
         execution_worker,
@@ -43,6 +54,7 @@ if __name__ == '__main__':
         N = N,
         K = K,
         risk_percentage = risk_percentage,
+        tick_dict = tick_dict,
         ewma_halflife = 10,
         estimation_method = 'smoothed',
         smoothing_alpha = 0.5
