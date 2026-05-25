@@ -6,7 +6,9 @@ from tqdm import tqdm
 from epdf import ePDFCalculator
 
 def execution(signal,filename,data_path,symbol_dict,tau,M,N,K,risk_percentage,tick_dict,ewma_halflife=10,estimation_method='smoothed',smoothing_alpha=0.5):
-    result_path = "Result/"
+    result_path = "Result_" + str(tau) + "min/"
+    if not os.path.isdir(result_path):
+        os.mkdir(result_path)
     signal["timestamp"] = pd.to_datetime(signal["timestamp"])
     p = []
     for idx, row in tqdm(signal.iterrows(),total=len(signal), desc="Order by Order"):
@@ -22,11 +24,11 @@ def execution(signal,filename,data_path,symbol_dict,tau,M,N,K,risk_percentage,ti
             estimation_method=estimation_method,
             smoothing_alpha=smoothing_alpha
         )
-        date = str(row["timestamp"].date())
+        time = row["timestamp"]
         path = data_path + symbol_dict[instrument] + "/" + data
         df = pd.read_csv(path)
         df["time"] = pd.to_datetime(df["time"])
-        calc.fit(path, train_end_date=date)
+        calc.fit(path, train_end_date=time)
         df["volume_ewma"] = df["volume"].ewm(halflife=ewma_halflife, adjust=False).mean()
         df["ret"] = df["close"].pct_change()
         df["volatility_ewma"] = np.sqrt(
@@ -54,4 +56,4 @@ def execution(signal,filename,data_path,symbol_dict,tau,M,N,K,risk_percentage,ti
             price = pre_row["close"] + (l * tick_dict[instrument])
         p.append(price)
     signal["opti_price"] = p
-    signal.to_csv(result_path + filename)
+    signal.to_csv(result_path + filename,index=False)
