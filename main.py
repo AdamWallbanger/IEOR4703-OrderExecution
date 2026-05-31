@@ -32,7 +32,7 @@ if __name__ == '__main__':
         M = 3
         N = 3
         K = 2
-        risk_percentage = 0.3
+        risk_percentage = 0.9
         symbol_dict = {
             "VG" : "EuroStoxx",
             "BP" : "GBP - British Pound",

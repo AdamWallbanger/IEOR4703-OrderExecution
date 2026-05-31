@@ -6,10 +6,6 @@ import streamlit as st
 from epdf import ePDFCalculator
 
 
-# ============================================================
-# Streamlit page config
-# ============================================================
-
 st.set_page_config(
     page_title="Optimal Price Generator",
     layout="wide"
@@ -17,10 +13,6 @@ st.set_page_config(
 
 st.title("Optimal Price Generator")
 
-
-# ============================================================
-# Fixed config
-# ============================================================
 
 data_path = "Data/"
 
@@ -35,21 +27,17 @@ symbol_dict = {
 }
 
 tick_dict = {
-            'NQ': 0.25,
-            'HO': 0.01,
-            'GC': 0.10,
-            'BP': 0.01,
-            'JY': 0.005,
-            'RX': 0.01,
-            'VG': 0.50
-        }
+    "VG": 1,
+    "BP": 0.0001,
+    "RX": 0.01,
+    "GC": 0.1,
+    "HO": 0.0001,
+    "JY": 0.000001,
+    "NQ": 0.25
+}
 
 st.info(f"Fixed data path: `{data_path}`")
 
-
-# ============================================================
-# Sidebar inputs
-# ============================================================
 
 st.sidebar.header("Trading Inputs")
 
@@ -64,16 +52,15 @@ trade_side = st.sidebar.selectbox(
     ["Buy", "Sell"]
 )
 
-# Use text input instead of date_input to avoid calendar popup cutoff issue
 trade_date_str = st.sidebar.text_input(
     "Trade date",
-    value="2026/05/30",
+    value="2025/04/08",
     help="Format: YYYY/MM/DD"
 )
 
 trade_time_str = st.sidebar.text_input(
     "Trade time, minute level",
-    value="21:04",
+    value="09:00",
     help="Format: HH:MM"
 )
 
@@ -103,10 +90,6 @@ risk_percentage = st.sidebar.number_input(
     help="Must be strictly between 0 and 1"
 )
 
-
-# ============================================================
-# Advanced parameters
-# ============================================================
 
 with st.sidebar.expander("Advanced Parameters"):
     M = st.number_input(
@@ -152,10 +135,6 @@ with st.sidebar.expander("Advanced Parameters"):
     )
 
 
-# ============================================================
-# Main request summary
-# ============================================================
-
 st.header("Selected Trading Request")
 
 col1, col2, col3, col4 = st.columns([1, 1, 2, 1])
@@ -188,15 +167,7 @@ st.write(
 )
 
 
-# ============================================================
-# Generate optimal price
-# ============================================================
-
 if st.button("Generate Optimal Price"):
-
-    # ========================================================
-    # Step 1: Locate data folder
-    # ========================================================
 
     folder_path = os.path.join(data_path, symbol_dict[instrument])
 
@@ -219,10 +190,6 @@ if st.button("Generate Optimal Price"):
     st.success(f"Found {len(files)} contract files.")
 
 
-    # ========================================================
-    # Step 2: Find main contract at selected time
-    # ========================================================
-
     st.subheader("Step 2: Find Main Contract at Selected Time")
 
     candidate_records = []
@@ -233,9 +200,6 @@ if st.button("Generate Optimal Price"):
         try:
             temp = pd.read_csv(file_path)
 
-            if "time" not in temp.columns:
-                continue
-
             required_cols = ["time", "close", "volume"]
 
             if not all(col in temp.columns for col in required_cols):
@@ -244,7 +208,6 @@ if st.button("Generate Optimal Price"):
             temp["time"] = pd.to_datetime(temp["time"])
             temp = temp.sort_values("time").reset_index(drop=True)
 
-            # Find the latest row at or before the selected minute
             hist_for_current_minute = temp[temp["time"] <= trade_timestamp]
 
             if hist_for_current_minute.empty:
@@ -252,7 +215,6 @@ if st.button("Generate Optimal Price"):
 
             current_row = hist_for_current_minute.iloc[-1]
 
-            # Only accept data exactly in the selected minute
             if current_row["time"].floor("min") != trade_timestamp:
                 continue
 
@@ -260,7 +222,7 @@ if st.button("Generate Optimal Price"):
                 {
                     "contract": file,
                     "path": file_path,
-                    "last_time": current_row["time"],
+                    "last_time": current_row["time"].strftime("%Y-%m-%d %H:%M"),
                     "close": current_row["close"],
                     "volume": current_row["volume"]
                 }
@@ -270,7 +232,7 @@ if st.button("Generate Optimal Price"):
             continue
 
     if len(candidate_records) == 0:
-        st.error(f"No data found for {instrument} at {trade_timestamp}.")
+        st.error(f"No data found for {instrument} at {trade_timestamp.strftime('%Y-%m-%d %H:%M')}.")
         st.stop()
 
     candidate_df = pd.DataFrame(candidate_records)
@@ -278,8 +240,6 @@ if st.button("Generate Optimal Price"):
     st.write("Contracts with data at selected minute:")
     st.dataframe(candidate_df)
 
-    # Default main contract logic:
-    # among all contracts with data at this minute, choose the one with largest volume
     main_contract_row = (
         candidate_df
         .sort_values("volume", ascending=False)
@@ -291,45 +251,21 @@ if st.button("Generate Optimal Price"):
 
     st.success(f"Main contract at this time: `{main_contract}`")
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3 = st.columns([1, 2, 1])
 
     with col1:
         st.metric("Main contract", main_contract)
 
     with col2:
-        st.metric("Last bar time", str(main_contract_row["last_time"]))
+        st.write("Last bar time")
+        st.markdown(f"### `{main_contract_row['last_time']}`")
 
     with col3:
         st.metric("Volume", main_contract_row["volume"])
 
 
-    # ========================================================
-    # Internal calculation, hidden from UI
-    # ========================================================
-
     try:
-        df = pd.read_csv(main_contract_path)
-
-        required_cols = [
-            "time",
-            "open",
-            "high",
-            "low",
-            "close",
-            "volume"
-        ]
-
-        missing_cols = [
-            col for col in required_cols
-            if col not in df.columns
-        ]
-
-        if missing_cols:
-            st.error(f"Main contract data is missing columns: {missing_cols}")
-            st.stop()
-
-        df["time"] = pd.to_datetime(df["time"])
-        df = df.sort_values("time").reset_index(drop=True)
+        tick = tick_dict[instrument]
 
         calc = ePDFCalculator(
             instrument=instrument,
@@ -347,57 +283,59 @@ if st.button("Generate Optimal Price"):
             train_end_date=trade_timestamp
         )
 
-        tick = tick_dict[instrument]
-
-        # volume strict lag EWMA
-        df["volume_ewma"] = (
-            df["volume"]
-            .shift(1)
-            .ewm(halflife=ewma_halflife, adjust=False)
-            .mean()
+        df_proc = calc.data_processor.process_pipeline(
+            filepath=main_contract_path,
+            tick_size=tick,
+            tau=tau,
+            min_completeness=0.9,
+            train_end_date=None
         )
 
-        # range R = (H - L) / tick, strict lag EWMA as volatility
-        df["range_R"] = (df["high"] - df["low"]) / tick
-
-        df["volatility_ewma"] = (
-            df["range_R"]
-            .shift(1)
-            .ewm(halflife=ewma_halflife, adjust=False)
-            .mean()
+        df_proc = calc.state_classifier.compute_all_ewma_features(
+            df_proc,
+            ewma_halflife
         )
 
-        # open first difference, strict lag EWMA as price change
-        df["open_delta"] = df["open"].diff()
+        if not isinstance(df_proc.index, pd.DatetimeIndex):
+            if "time" in df_proc.columns:
+                df_proc["time"] = pd.to_datetime(df_proc["time"])
+                df_proc = df_proc.set_index("time")
+            elif "timestamp" in df_proc.columns:
+                df_proc["timestamp"] = pd.to_datetime(df_proc["timestamp"])
+                df_proc = df_proc.set_index("timestamp")
+            else:
+                st.error("Processed dataframe has no datetime index, time column, or timestamp column.")
+                st.stop()
 
-        df["ewma_delta_x"] = (
-            df["open_delta"]
-            .shift(1)
-            .ewm(halflife=ewma_halflife, adjust=False)
-            .mean()
-        )
+        df_proc = df_proc.sort_index()
 
-        # Use strictly previous row before trade_timestamp
-        hist = df[df["time"] < trade_timestamp]
+        hist = df_proc[df_proc.index < trade_timestamp]
 
         if hist.empty:
-            st.error("No historical row before selected trade time.")
+            st.error("No tau-min bar before selected trade time.")
             st.stop()
 
         pre_row = hist.iloc[-1]
 
-        if (
-            pd.isna(pre_row["volume_ewma"])
-            or pd.isna(pre_row["volatility_ewma"])
-            or pd.isna(pre_row["ewma_delta_x"])
-        ):
+        state_cols = ["v_ewma", "sigma_ewma", "delta_x_ewma"]
+
+        missing_state_cols = [
+            col for col in state_cols
+            if col not in df_proc.columns
+        ]
+
+        if missing_state_cols:
+            st.error(f"Processed dataframe is missing state columns: {missing_state_cols}")
+            st.stop()
+
+        if pre_row[state_cols].isna().any():
             st.error("State feature contains NaN. Cannot calculate optimal price.")
             st.stop()
 
         state = calc.get_current_state(
-            pre_row["volume_ewma"],
-            pre_row["volatility_ewma"],
-            pre_row["ewma_delta_x"]
+            pre_row["v_ewma"],
+            pre_row["sigma_ewma"],
+            pre_row["delta_x_ewma"]
         )
 
         if trade_side == "Buy":
@@ -409,10 +347,6 @@ if st.button("Generate Optimal Price"):
         st.error(f"Internal calculation failed: {e}")
         st.stop()
 
-
-    # ========================================================
-    # Step 3: Query CDF
-    # ========================================================
 
     st.subheader("Step 3: Query CDF")
 
@@ -463,10 +397,6 @@ if st.button("Generate Optimal Price"):
         st.metric("Selected CDF", placement_cdf)
 
 
-    # ========================================================
-    # Step 4: Generate optimal price
-    # ========================================================
-
     st.subheader("Step 4: Generate Optimal Price")
 
     if direction == "range_dn":
@@ -477,7 +407,7 @@ if st.button("Generate Optimal Price"):
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.metric("Previous close", pre_row["close"])
+        st.metric("Previous tau-bar close", pre_row["close"])
 
     with col2:
         st.metric("Tick size", tick)
@@ -491,27 +421,116 @@ if st.button("Generate Optimal Price"):
     st.success(f"Optimal price: {opti_price}")
 
 
-    # ========================================================
-    # Step 5: Final result
-    # ========================================================
+    st.subheader("Step 5: Backtest Fill Check")
 
-    st.subheader("Step 5: Final Result")
+    try:
+        raw_df = pd.read_csv(main_contract_path)
+        raw_df["time"] = pd.to_datetime(raw_df["time"])
+        raw_df = raw_df.sort_values("time").reset_index(drop=True)
+
+        placement_end = trade_timestamp + pd.Timedelta(minutes=tau)
+
+        placement_df = raw_df[
+            (raw_df["time"] >= trade_timestamp) &
+            (raw_df["time"] < placement_end)
+        ]
+
+        next_row = raw_df[raw_df["time"] >= placement_end].head(1)
+
+        if len(placement_df) == 0:
+            if len(next_row) == 0:
+                filled = False
+                filled_price = np.nan
+                fill_reason = "No data during placement window and no next row after placement window."
+            else:
+                filled = False
+                filled_price = next_row["open"].iloc[0]
+                fill_reason = "No data during placement window. Filled price uses next row open."
+        else:
+            mask = (
+                (placement_df["low"] <= opti_price) &
+                (placement_df["high"] >= opti_price)
+            )
+
+            filled = mask.any()
+
+            if filled:
+                filled_price = opti_price
+                first_fill_row = placement_df[mask].iloc[0]
+                fill_reason = (
+                    "Optimal price covered by OHLC range at "
+                    f"{pd.Timestamp(first_fill_row['time']).strftime('%Y-%m-%d %H:%M')}."
+                )
+            else:
+                filled_price = placement_df["close"].iloc[-1]
+                fill_reason = "Optimal price not covered. Filled price uses last close in placement window."
+
+        fill_status = "Filled" if filled else "Not Filled"
+
+        if filled:
+            st.success(f"Fill status: {fill_status}")
+        else:
+            st.warning(f"Fill status: {fill_status}")
+
+        col1, col2, col3, col4 = st.columns([1.5, 1.5, 1, 1])
+
+        with col1:
+            st.write("Placement start")
+            st.markdown(f"### `{trade_timestamp.strftime('%Y-%m-%d %H:%M')}`")
+
+        with col2:
+            st.write("Placement end")
+            st.markdown(f"### `{placement_end.strftime('%Y-%m-%d %H:%M')}`")
+
+        with col3:
+            st.metric("Filled price", filled_price)
+
+        with col4:
+            st.metric("Rows checked", len(placement_df))
+
+        st.write(fill_reason)
+
+        if len(placement_df) > 0:
+            display_placement_df = placement_df[
+                ["time", "open", "high", "low", "close", "volume"]
+            ].copy()
+
+            display_placement_df["time"] = display_placement_df["time"].dt.strftime(
+                "%Y-%m-%d %H:%M"
+            )
+
+            st.write("Placement window data:")
+            st.dataframe(display_placement_df)
+
+    except Exception as e:
+        st.error(f"Backtest fill check failed: {e}")
+        st.stop()
+
+
+    st.subheader("Step 6: Final Result")
 
     result = {
         "instrument": instrument,
         "instrument_name": symbol_dict[instrument],
         "trade_side": trade_side,
-        "trade_timestamp": trade_timestamp,
+        "trade_timestamp": trade_timestamp.strftime("%Y-%m-%d %H:%M"),
         "main_contract": main_contract,
         "tau_min": tau,
         "risk_percentage": risk_percentage,
         "direction": direction,
+        "state": state,
         "placement_level": placement_level,
         "placement_cdf": placement_cdf,
-        "previous_close": pre_row["close"],
-        "previous_row_time": pre_row["time"],
+        "previous_tau_bar_time": pd.Timestamp(pre_row.name).strftime("%Y-%m-%d %H:%M"),
+        "previous_tau_bar_close": pre_row["close"],
         "tick": tick,
-        "opti_price": opti_price
+        "opti_price": opti_price,
+        "placement_start": trade_timestamp.strftime("%Y-%m-%d %H:%M"),
+        "placement_end": placement_end.strftime("%Y-%m-%d %H:%M"),
+        "fill_status": fill_status,
+        "filled": filled,
+        "filled_price": filled_price,
+        "fill_reason": fill_reason
     }
 
     result_df = pd.DataFrame([result])
