@@ -4,10 +4,10 @@ import os
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 
-tau = [10,15,30,60]
-P = "60%"
+tau = [5,10,15,30,60]
+P = "30%"
 for i in range(len(tau)):
-    result_path = "Result_" + str(tau) + "min/"
+    result_path = "Result_" + str(tau[i]) + "min/"
     filenames = os.listdir(result_path)
 
     summary = []
@@ -119,7 +119,7 @@ for i in range(len(tau)):
     plt.ylabel("Average Slippage (bps)")
     plt.title(
         f"Average Slippage bps\n"
-        f"tau = {tau}, P = {P}"
+        f"tau = {tau[i]}, P = {P}"
     )
 
     plt.xticks(rotation=45, ha="right")

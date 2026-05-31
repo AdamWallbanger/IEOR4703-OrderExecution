@@ -24,7 +24,7 @@ def backtest_worker(filename,result_path,data_path,symbol_dict,tau):
 
 if __name__ == '__main__':
 
-    t = [10,15,30,60]
+    t = [5,10,15,30,60]
     for i in range(len(t)):
         data_path = "Data/"
         signal_path = "Signal/"
@@ -32,7 +32,7 @@ if __name__ == '__main__':
         M = 3
         N = 3
         K = 2
-        risk_percentage = 0.6
+        risk_percentage = 0.3
         symbol_dict = {
             "VG" : "EuroStoxx",
             "BP" : "GBP - British Pound",
