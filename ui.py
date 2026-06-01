@@ -122,7 +122,7 @@ with st.sidebar.expander("Advanced Parameters"):
 
     estimation_method = st.selectbox(
         "estimation_method",
-        ["smoothed", "empirical"],
+        ["smoothed", "raw"],
         index=0
     )
 

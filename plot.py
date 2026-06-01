@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 
 tau = [5,10,15,30,60]
-P = "30%"
+P = "90%"
 for i in range(len(tau)):
     result_path = "Result_" + str(tau[i]) + "min/"
     filenames = os.listdir(result_path)
