@@ -76,7 +76,7 @@ with the sign chosen by direction.
 
 For each placement, the backtest module isolates the OHLC path on the window `[t, t + τ]` and declares a fill at the recommended price `p★` whenever some bar in that window satisfies `low ≤ p★ ≤ high`. If no bar reaches the recommended price, the order is closed at the close price of the last bar in the window, or at the open of the first bar after the window if the window contains no bars. Slippage is signed so that positive values correspond to execution that improves on the benchmark,
 
-$$\text{slippage} = \bigl(\text{benchmark amount} - \text{realized amount}\bigr) \cdot \operatorname{sign}(\text{signal}),$$
+$$\text{slippage} = \bigl(\text{benchmark amount} - \text{realized amount}\bigr) \cdot \mathrm{sign}(\text{signal}),$$
 
 with benchmark amount equal to the AI agent's reference price multiplied by `|signal|`.
 
