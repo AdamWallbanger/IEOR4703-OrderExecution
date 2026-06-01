@@ -40,7 +40,7 @@ The probabilistic core of the method is contained in `epdf/` and exposes a singl
 
 **Preprocessing.** The data processor loads the 1-minute OHLCV file, filters out trading days whose minute count falls below 90 % of the historical median, and resamples to τ-minute bars by aggregating only those windows that retain at least 80 % of their expected minutes. Day boundaries are inferred from time gaps of four hours or more. For every aggregated bar the processor computes three tick-normalized range quantities,
 
-$$R = \mathrm{round}\!\left(\frac{H-L}{\varepsilon}\right), \qquad R_{\text{up}} = \mathrm{round}\!\left(\frac{H-O}{\varepsilon}\right), \qquad R_{\text{dn}} = \mathrm{round}\!\left(\frac{O-L}{\varepsilon}\right),$$
+$$R = \mathrm{round}\left(\frac{H-L}{\varepsilon}\right), \qquad R_{\text{up}} = \mathrm{round}\left(\frac{H-O}{\varepsilon}\right), \qquad R_{\text{dn}} = \mathrm{round}\left(\frac{O-L}{\varepsilon}\right),$$
 
 where ε denotes the contract tick size.
 
@@ -52,7 +52,7 @@ and uses the empirical quantiles of the three EWMA series on the slice `[J_s :]`
 
 **Distribution estimation.** For each observed state, the estimator builds three conditional empirical mass functions over `R`, `R_up`, and `R_dn` from the corresponding histograms of post-`J_s` bars. The smoothed estimator applies Laplace smoothing with parameter α = 0.5, yielding
 
-$$\hat{p}(R = \ell \mid s) = \frac{n_{\ell,s} + \alpha}{n_s + \alpha\,(R_{\max,s} + 1)},$$
+$$\hat{p}(R = \ell \mid s) = \frac{n_{\ell,s} + \alpha}{n_s + \alpha (R_{\max,s} + 1)},$$
 
 after which the upper-tail CDF is obtained by reverse cumulative summation,
 
@@ -64,7 +64,7 @@ The class also exposes a validation routine that verifies normalization of each 
 
 For each signal, the execution module retrains the calculator on data strictly earlier than the signal timestamp. It then reapplies the same `process_pipeline` and `compute_all_ewma_features` routines as the training step on the full data file (without a training cutoff) so that the query-time features are guaranteed to live in the same coordinate system as the bin boundaries learned at training. The last τ-minute bar whose timestamp is strictly less than the signal timestamp provides the values of `v_ewma`, `sigma_ewma`, and `delta_x_ewma` that classify the market into one of the eighteen states. Order direction is determined by the sign of the signal, with a buy order placed below the prevailing close (`range_dn`) and a sell order placed above it (`range_up`). The placement offset ℓ (in ticks) is then chosen as
 
-$$\ell^\star \;=\; \max\bigl\{\,\ell \in \{0, 1, \dots, 9\} \;:\; F(\ell \mid s) \ge P\,\bigr\},$$
+$$\ell^\star = \max\bigl\lbrace \ell \in \lbrace 0, 1, \dots, 9 \rbrace : F(\ell \mid s) \ge P \bigr\rbrace,$$
 
 so that the order is placed at the deepest tick offset whose conditional fill probability still meets the minimum threshold `P`. The recommended limit price is
 
